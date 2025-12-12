@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>India Map Data Visualiser — State callouts</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <!-- d3 + topojson -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://unpkg.com/topojson-client@3"></script>
+
+  <!-- exports -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;background:#f4f6fb;margin:0;color:#111}
+    .container{max-width:1200px;margin:14px auto;padding:16px}
+    .layout{display:grid;grid-template-columns:minmax(260px,360px) 1fr;gap:16px}
+    @media (max-width:920px){.layout{grid-template-columns:1fr}}
+    .card{background:#fff;border-radius:10px;padding:14px;box-shadow:0 6px 18px rgba(10,20,50,0.06)}
+    header{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+    header img{height:56px;width:auto;display:block}
+    h1{margin:0;font-size:20px}
+    p.small{margin:6px 0 12px;color:#556}
+    label{display:block;font-weight:700;margin:8px 0 6px}
+    input[type="text"],select{width:100%;padding:8px;border-radius:6px;border:1px solid #d1d7e0;font-size:0.95rem}
+    .row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+    .row select{flex:1}
+    .row input[type="color"]{width:44px;height:34px;padding:0;border:none}
+    .row .data-input{width:120px;min-width:100px}
+    button{background:#2563eb;color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;font-weight:700}
+    button.secondary{background:#0f766e;margin-left:6px}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .small{font-size:0.86rem;color:#666;margin-top:6px}
+    #map-wrap{background:#f8fafc;border-radius:8px;padding:8px;border:1px solid #e6eef6}
+    #map-area{min-height:620px;border-radius:6px;background:#fff;padding:8px;display:flex;align-items:center;justify-content:center;position:relative}
+    svg{width:100%;height:auto;display:block}
+    #data-box{margin-top:10px;padding:10px;border-radius:8px;background:#f1f5f9;border:1px solid #e2e8f0}
+    .label-bg { fill:#ffffff; stroke:#e2e8f0; stroke-width:0.8px; rx:6px; ry:6px; }
+    .label-name { font-size:12px; font-weight:700; fill:#071022; }
+    .label-value { font-size:12px; fill:#071022; opacity:0.9; }
+    footer{margin-top:18px;text-align:center;color:#555}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <a href="#" title="Khelo Bharat Officials"><img src="logo.svg" alt="Khelo Bharat logo" /></a>
+      <div>
+        <h1>India Map Data Visualiser — State callouts</h1>
+        <p class="small">Choose states (state-level data), assign colors & values, labels appear outside map with leader lines, export as PNG/PDF.</p>
+      </div>
+    </header>
+
+    <div class="layout">
+      <!-- Controls -->
+      <div class="card">
+        <label for="mapTitle">Map title</label>
+        <input id="mapTitle" placeholder="e.g. Population by state (2025)" type="text"/>
+
+        <label for="numStates">Number of states to colour</label>
+        <select id="numStates">
+          <option value="0">0</option>
+          <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+          <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+          <option>11</option><option>12</option><option>13</option><option>14</option><option>15</option>
+          <option>16</option><option>17</option> <option>18</option><option>19</option><option>20</option>
+        </select>
+
+        <div class="small">Each row: state, colour and numeric/text value. Only selected states get coloured — others stay white.</div>
+        <div id="state-selectors" style="margin-top:10px"></div>
+
+        <hr style="margin:12px 0;border:none;border-top:1px solid #eef2f7" />
+
+        <label for="dataTitle">Title of data (appears below map)</label>
+        <input id="dataTitle" placeholder="e.g. Cases reported" type="text" />
+
+        <div style="margin-top:10px">
+          <button id="generateBtn">Generate Map</button>
+          <span id="status" class="small" style="margin-left:10px"></span>
+        </div>
+
+        <hr style="margin:12px 0;border:none;border-top:1px solid #eef2f7" />
+
+        <div>
+          <button id="downloadPng" class="secondary" disabled>Download PNG</button>
+          <button id="downloadPdf" class="secondary" disabled>Download PDF</button>
+          <div class="small" style="margin-top:6px">Export buttons enable after generating the map.</div>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="card">
+        <div id="map-wrap">
+          <div id="map-area">
+            <span class="small">Map will appear here after you click Generate Map.</span>
+          </div>
+          <div id="data-box">
+            <h3 id="dataTitleDisplay">Data title will appear here</h3>
+            <div id="dataList" class="small" style="margin-top:8px">Selected state data will list here as 'State — value'.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>© 2025 <strong>Khelo Bharat Officials</strong>.</footer>
+  </div>
+
+  <script>
+    // Load the TopoJSON for India (file you uploaded). We're using the first object inside topo.objects.
+    let topo = null;
+    let features = [];
+    let stateNames = [];
+    const statusEl = document.getElementById("status");
+
+    fetch("india.json")
+      .then(r => { if(!r.ok) throw new Error("Please place india.json in the same folder as this page."); return r.json(); })
+      .then(t => {
+        topo = t;
+        // auto-detect first geometry object (works for typical topojson where districts are inside one object)
+        const keys = Object.keys(t.objects || {});
+        if(keys.length === 0) throw new Error("india.json seems invalid (no topo objects).");
+        const objKey = keys[0];
+        const geo = topojson.feature(t, t.objects[objKey]);
+        features = geo.features || [];
+        // collect unique state names from property st_nm
+        const set = new Set();
+        features.forEach(f => {
+          const nm = (f.properties && (f.properties.st_nm || f.properties.STATE || f.properties.STATE_NAME)) || f.id || "Unknown";
+          set.add(nm);
+        });
+        stateNames = Array.from(set).sort((a,b)=>a.localeCompare(b));
+        buildSelectors(0);
+        statusEl.textContent = `Loaded ${features.length} polygons and ${stateNames.length} states.`;
+      })
+      .catch(err => { console.error(err); statusEl.textContent = err.message; });
+
+    // Build selector rows
+    function buildSelectors(count){
+      const container = document.getElementById("state-selectors");
+      container.innerHTML = "";
+      for(let i=0;i<count;i++){
+        const row = document.createElement("div"); row.className = "row";
+        const label = document.createElement("div");
+        label.style.minWidth="40px"; label.style.fontWeight="600"; label.style.fontSize="0.9rem";
+        label.textContent = `#${i+1}`;
+
+        const sel = document.createElement("select"); sel.className = "state-select";
+        const def = document.createElement("option"); def.value=""; def.textContent="-- select state --"; sel.appendChild(def);
+        stateNames.forEach(n => { const o = document.createElement("option"); o.value=n; o.textContent=n; sel.appendChild(o); });
+
+        const color = document.createElement("input"); color.type="color"; color.className="state-color"; color.value="#2563eb";
+
+        const dataInput = document.createElement("input"); dataInput.type="text"; dataInput.placeholder="value (e.g. 11145)";
+        dataInput.className="data-input state-data";
+
+        row.appendChild(label); row.appendChild(sel); row.appendChild(color); row.appendChild(dataInput);
+        container.appendChild(row);
+      }
+    }
+
+    document.getElementById("numStates").addEventListener("change", e => {
+      const n = parseInt(e.target.value) || 0; buildSelectors(n);
+    });
+
+    // Read mapping from selectors
+    function getMappings(){
+      const mapping = {}; // state -> color
+      const dataMap = {}; // state -> value
+      const sels = document.querySelectorAll(".state-select");
+      const cols = document.querySelectorAll(".state-color");
+      const datas = document.querySelectorAll(".state-data");
+      sels.forEach((s,i) => {
+        const name = s.value; const color = (cols[i] && cols[i].value) || "#000000"; const val = (datas[i] && datas[i].value) || "";
+        if(name){ mapping[name] = color; dataMap[name] = val; }
+      });
+      return { mapping, dataMap };
+    }
+
+    function featureStateName(f){
+      return (f.properties && (f.properties.st_nm || f.properties.STATE || f.properties.STATE_NAME)) || f.id || "Unknown";
+    }
+
+    // compute centroids using projection
+    function computeCentroids(projection){
+      const centroids = {};
+      features.forEach(f => {
+        const c = d3.geoCentroid(f);
+        const p = projection(c);
+        centroids[featureStateName(f)] = centroids[featureStateName(f)] || []; // we may have many polygons per state (union needed)
+        if(p) centroids[featureStateName(f)].push(p);
+      });
+      // choose median centroid for each state
+      const chosen = {};
+      Object.keys(centroids).forEach(k => {
+        const arr = centroids[k];
+        if(!arr.length) return;
+        // average x,y
+        const avg = arr.reduce((acc,xy)=>[acc[0]+xy[0],acc[1]+xy[1]], [0,0]).map(v=>v/arr.length);
+        chosen[k] = avg;
+      });
+      return chosen;
+    }
+
+    // Main draw
+    function draw(){
+      if(!features.length) { alert("india.json not loaded yet."); return; }
+      const mapTitle = document.getElementById("mapTitle").value.trim();
+      const dataTitle = document.getElementById("dataTitle").value.trim();
+      document.getElementById("dataTitleDisplay").textContent = dataTitle || "No data title given";
+
+      const { mapping, dataMap } = getMappings();
+
+      // Build data list below map
+      const dataListEl = document.getElementById("dataList");
+      dataListEl.innerHTML = "";
+      const selectedNames = Object.keys(mapping);
+      if(selectedNames.length === 0){
+        dataListEl.textContent = "Selected state data will list here as 'State — value'.";
+      } else {
+        const wrap = document.createElement("div"); wrap.style.display="flex"; wrap.style.flexDirection="column"; wrap.style.gap="6px";
+        selectedNames.forEach(n=>{
+          const el = document.createElement("div"); el.textContent = `${n} — ${dataMap[n] || ""}`; el.style.fontWeight="600";
+          wrap.appendChild(el);
+        });
+        dataListEl.appendChild(wrap);
+      }
+
+      // Render SVG
+      const wrapSel = d3.select("#map-area"); wrapSel.selectAll("*").remove();
+      const width = 1100, height = 720;
+      const svg = wrapSel.append("svg").attr("viewBox", `0 0 ${width} ${height}`).attr("preserveAspectRatio","xMidYMid meet");
+
+      // optional: embed logo inside SVG so exports include it
+      svg.append("image").attr("href","logo.svg").attr("x",10).attr("y",6).attr("height",44).attr("preserveAspectRatio","xMidYMid meet");
+
+      if(mapTitle){
+        svg.append("text").attr("x", width/2).attr("y", 36).attr("text-anchor","middle").attr("font-size",18).attr("font-weight",700).text(mapTitle);
+      }
+      const g = svg.append("g").attr("transform", mapTitle ? "translate(0,52)" : "translate(0,10)");
+      const innerW = width;
+      const innerH = height - (mapTitle ? 52 : 20);
+
+      // compute projection that fits whole features collection
+      const projection = d3.geoMercator().fitSize([innerW, innerH], { type:"FeatureCollection", features });
+      const path = d3.geoPath().projection(projection);
+
+      // fill: color by state mapping; others white
+      g.selectAll("path.state")
+        .data(features)
+        .join("path")
+        .attr("class","state")
+        .attr("d", path)
+        .attr("fill", d => mapping[featureStateName(d)] || "#ffffff")
+        .attr("stroke","none");
+
+      // draw outer boundary and internal borders (we detect first object key)
+      if(topo && topo.objects){
+        const keys = Object.keys(topo.objects);
+        if(keys.length){
+          const objKey = keys[0];
+          const obj = topo.objects[objKey];
+          // outer boundary (mesh where a === b)
+          const outer = topojson.mesh(topo, obj, (a,b) => a === b);
+          g.append("path").attr("d", path(outer)).attr("fill","none").attr("stroke","#0f1724").attr("stroke-width",1.1);
+          // internal borders between different states (compare st_nm)
+          const internal = topojson.mesh(topo, obj, (a,b) => a !== b && a.properties && b.properties && a.properties.st_nm !== b.properties.st_nm);
+          g.append("path").attr("d", path(internal)).attr("fill","none").attr("stroke","#0f1724").attr("stroke-width",0.6);
+        }
+      }
+
+      // compute centroids (we average centroids of all polygons of same state)
+      const centroids = computeCentroids(projection);
+
+      // prepare selected items and split left/right depending on centroid.x
+      const bbox = path.bounds({ type:"FeatureCollection", features });
+      const minX = bbox[0][0], maxX = bbox[1][0], minY = bbox[0][1], maxY = bbox[1][1];
+      const centerX = (minX + maxX) / 2;
+
+      const selected = selectedNames.map(name => {
+        const c = centroids[name];
+        return c ? { name, centroid: c, color: mapping[name], value: dataMap[name] } : null;
+      }).filter(Boolean);
+
+      const leftItems = selected.filter(s => s.centroid[0] < centerX).sort((a,b)=>a.centroid[1]-b.centroid[1]);
+      const rightItems = selected.filter(s => s.centroid[0] >= centerX).sort((a,b)=>a.centroid[1]-b.centroid[1]);
+
+      // columns X positions (inside viewport)
+      const colPad = 40;
+      const colLeftX = Math.max(8, minX - colPad - 220);
+      const colRightX = Math.min(innerW - 8 - 220, maxX + colPad);
+
+      // vertical stacking range
+      const topY = Math.max(6, minY - 10);
+      const bottomY = Math.min(innerH - 6, maxY + 10);
+      function computeYs(n){
+        const ys = [];
+        if(n===0) return ys;
+        const space = (bottomY - topY) / (n + 1);
+        for(let i=1;i<=n;i++) ys.push(topY + i*space);
+        return ys;
+      }
+      const leftYs = computeYs(leftItems.length);
+      const rightYs = computeYs(rightItems.length);
+
+      const labelGroup = g.append("g").attr("class","callouts");
+
+      function renderLabel(x,y,item,anchor){
+        // leader line
+        labelGroup.append("line")
+          .attr("x1", item.centroid[0]).attr("y1", item.centroid[1])
+          .attr("x2", x).attr("y2", y)
+          .attr("stroke", item.color).attr("stroke-width",2).attr("stroke-linecap","round");
+        const combined = item.value ? `${item.name} — ${item.value}` : item.name;
+        const estW = Math.min(360, Math.max(90, combined.length * 7));
+        const padX = 8, padY = 6;
+        let boxX = anchor === "left" ? x - estW - 10 : x + 10;
+        let boxY = y - (item.value ? 18 : 12);
+        boxX = Math.max(6, Math.min(innerW - estW - padX*2 - 6, boxX));
+        boxY = Math.max(6, Math.min(innerH - (item.value?36:24) - 6, boxY));
+
+        labelGroup.append("rect")
+          .attr("x", boxX - padX).attr("y", boxY - padY)
+          .attr("width", estW + padX*2).attr("height", item.value ? 36 : 24)
+          .attr("class","label-bg").attr("rx",6).attr("ry",6).attr("fill","#fff").attr("stroke","#e2e8f0");
+
+        labelGroup.append("text").attr("x", boxX).attr("y", boxY + 10).attr("class","label-name").text(item.name);
+        if(item.value) labelGroup.append("text").attr("x", boxX).attr("y", boxY + 26).attr("class","label-value").text(item.value);
+      }
+
+      leftItems.forEach((it,idx)=>{ const y = leftYs[idx] || (topY + idx*18); renderLabel(colLeftX, y, it, "left"); });
+      rightItems.forEach((it,idx)=>{ const y = rightYs[idx] || (topY + idx*18); renderLabel(colRightX, y, it, "right"); });
+
+      document.getElementById("downloadPng").disabled = false;
+      document.getElementById("downloadPdf").disabled = false;
+      statusEl.textContent = "Map generated. Labels placed outside map and data listed below.";
+    }
+
+    document.getElementById("generateBtn").addEventListener("click", draw);
+
+    // Export functions
+    async function downloadPNG(){
+      const area = document.getElementById("map-wrap");
+      const canvas = await html2canvas(area, {scale:2});
+      const link = document.createElement("a");
+      link.download = "india-map-states.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    }
+    async function downloadPDF(){
+      const area = document.getElementById("map-wrap");
+      const canvas = await html2canvas(area, {scale:2});
+      const img = canvas.toDataURL("image/png");
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF("p","mm","a4");
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const imgProps = pdf.getImageProperties(img);
+      const pdfW = pageW - 12;
+      const pdfH = imgProps.height * pdfW / imgProps.width;
+      const y = Math.max((pageH - pdfH)/2, 8);
+      pdf.addImage(img,"PNG",6,y,pdfW,pdfH);
+      pdf.save("india-map-states.pdf");
+    }
+    document.getElementById("downloadPng").addEventListener("click", downloadPNG);
+    document.getElementById("downloadPdf").addEventListener("click", downloadPDF);
+  </script>
+</body>
+</html>
