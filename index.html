@@ -41,9 +41,25 @@
     #map-area{min-height:620px;border-radius:6px;background:#fff;padding:8px;display:flex;align-items:center;justify-content:center;position:relative}
     svg{width:100%;height:auto;display:block}
     #data-box{margin-top:10px;padding:10px;border-radius:8px;background:#f1f5f9;border:1px solid #e2e8f0}
-    .label-bg { fill:#ffffff; stroke:#e2e8f0; stroke-width:0.8px; rx:6px; ry:6px; }
-    .label-name { font-size:12px; font-weight:700; fill:#071022; }
-    .label-value { font-size:12px; fill:#071022; opacity:0.9; }
+
+    /* NEW: responsive grid for the data list */
+    #dataList {
+      margin-top:8px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+      align-items: start;
+    }
+    .data-entry {
+      background: #fff;
+      border-radius: 8px;
+      padding: 10px;
+      border: 1px solid #e6edf4;
+      box-shadow: 0 2px 6px rgba(8,18,30,0.03);
+    }
+    .data-entry .title { font-weight:700; margin-bottom:6px; color:#0b1724; }
+    .data-entry .line { font-weight:600; color:#133143; margin:2px 0; font-size:0.95rem; }
+
     footer{margin-top:18px;text-align:center;color:#555}
   </style>
 </head>
@@ -102,7 +118,8 @@
           </div>
           <div id="data-box">
             <h3 id="dataTitleDisplay">Data title will appear here</h3>
-            <div id="dataList" class="small" style="margin-top:8px">Selected state data will list here as 'State — value'.</div>
+            <!-- dataList is now a responsive grid -->
+            <div id="dataList" class="small">Selected state data will list here.</div>
           </div>
         </div>
       </div>
@@ -206,36 +223,24 @@
       return chosen;
     }
 
-    // helper: split user data string into lines
+    // helper: split user data string into lines (preserve \n, common separators, fallback heuristic)
     function splitDataLines(text){
       if(!text) return [];
-      // preserve explicit newlines
       if(text.includes('\n')) return text.split('\n').map(s=>s.trim()).filter(Boolean);
-
-      // split on common separators
       const sepMatch = /[|;,:]+/;
       if(sepMatch.test(text)){
         return text.split(sepMatch).map(s=>s.trim()).filter(Boolean);
       }
-
-      // try to match segments that end with a number (works for "कार्यक्रम 7 संख्या 400 ...")
+      // match segments ending with a number (works with "कार्यक्रम 7 संख्या 400 ...")
       const re = /[^0-9\n]+?\d+/gu;
       const segs = text.match(re);
-      if(segs && segs.length){
-        return segs.map(s=>s.trim());
-      }
-
-      // fallback: wrap into short lines (~36 chars) by words
+      if(segs && segs.length) return segs.map(s=>s.trim());
+      // fallback wrap
       const words = text.split(/\s+/).filter(Boolean);
-      const lines = [];
-      let line = "";
+      const lines = []; let line="";
       for(const w of words){
-        if((line + ' ' + w).trim().length > 36){
-          if(line) lines.push(line.trim());
-          line = w;
-        } else {
-          line = (line + ' ' + w).trim();
-        }
+        if((line + ' ' + w).trim().length > 36){ if(line) lines.push(line.trim()); line = w; }
+        else { line = (line + ' ' + w).trim(); }
       }
       if(line) lines.push(line.trim());
       return lines;
@@ -250,45 +255,36 @@
 
       const { mapping, dataMap } = getMappings();
 
-      // Build data list below map (no dash after state name; multiline)
+      // Build data list below map (responsive grid, left-to-right flow)
       const dataListEl = document.getElementById("dataList");
       dataListEl.innerHTML = "";
       const selectedNames = Object.keys(mapping);
       if(selectedNames.length === 0){
-        dataListEl.textContent = "Selected state data will list here as 'State — value'.";
+        dataListEl.textContent = "Selected state data will list here.";
       } else {
-        const wrap = document.createElement("div"); wrap.style.display="flex"; wrap.style.flexDirection="column"; wrap.style.gap="10px";
         selectedNames.forEach(n=>{
           const raw = dataMap[n] || "";
           const lines = splitDataLines(raw);
 
           const entry = document.createElement("div");
-          entry.style.display = "flex";
-          entry.style.flexDirection = "column";
-          entry.style.gap = "4px";
+          entry.className = "data-entry";
 
           const title = document.createElement("div");
-          title.textContent = n; // removed dash here
-          title.style.fontWeight = "700";
+          title.className = "title";
+          title.textContent = n; // no dash
           entry.appendChild(title);
 
           if(lines.length){
-            const linesWrap = document.createElement("div");
-            linesWrap.style.display = "flex";
-            linesWrap.style.flexDirection = "column";
-            linesWrap.style.marginLeft = "6px";
             lines.forEach(lineText => {
               const lineDiv = document.createElement("div");
+              lineDiv.className = "line";
               lineDiv.textContent = lineText;
-              lineDiv.style.fontWeight = "600";
-              linesWrap.appendChild(lineDiv);
+              entry.appendChild(lineDiv);
             });
-            entry.appendChild(linesWrap);
           }
 
-          wrap.appendChild(entry);
+          dataListEl.appendChild(entry);
         });
-        dataListEl.appendChild(wrap);
       }
 
       // Render SVG
